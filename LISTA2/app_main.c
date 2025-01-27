@@ -43,8 +43,8 @@
 #define GATT_ESS_HUMIDITY_UUID 0x2A6F
 
 #define I2C_MASTER_NUM I2C_NUM_0         // I2C port number
-#define I2C_MASTER_SDA_IO 21            // GPIO for SDA
-#define I2C_MASTER_SCL_IO 22            // GPIO for SCL
+#define I2C_MASTER_SDA_IO 4            // GPIO for SDA
+#define I2C_MASTER_SCL_IO 5            // GPIO for SCL
 #define I2C_MASTER_FREQ_HZ 100000       // I2C clock frequency
 #define AHT20_ADDR 0x38                 // I2C address of the AHT20 sensor
 #define AHT20_CMD_TRIGGER 0xAC          // Command to trigger measurement
@@ -94,6 +94,7 @@ esp_err_t aht20_read_data(uint8_t *data, size_t length) {
     i2c_master_stop(handle);
     esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, handle, pdMS_TO_TICKS(1000));
     i2c_cmd_link_delete(handle);
+    printf("%d",ret);
     return ret;
 }
 
