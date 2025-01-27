@@ -42,6 +42,15 @@
 #define GATT_ESS_TEMPERATURE_UUID 0x2A6E
 #define GATT_ESS_HUMIDITY_UUID 0x2A6F
 
+#define I2C_MASTER_NUM I2C_NUM_0         // I2C port number
+#define I2C_MASTER_SDA_IO 21            // GPIO for SDA
+#define I2C_MASTER_SCL_IO 22            // GPIO for SCL
+#define I2C_MASTER_FREQ_HZ 100000       // I2C clock frequency
+#define AHT20_ADDR 0x38                 // I2C address of the AHT20 sensor
+#define AHT20_CMD_TRIGGER 0xAC          // Command to trigger measurement
+#define AHT20_CMD_SOFTRESET 0xBA        // Command to reset the sensor
+#define AHT20_CMD_INIT 0xBE             // Command to initialize the sensor
+
 
 uint16_t hrs_hrm_handle;
 static bool is_connected = false;
@@ -50,6 +59,69 @@ static uint16_t conn_handle;
 // Variable to simulate heart beats
 static uint8_t heartrate = 90;
 
+// Function to initialize I2C
+void i2c_master_init() {
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = I2C_MASTER_SDA_IO,
+        .scl_io_num = I2C_MASTER_SCL_IO,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = I2C_MASTER_FREQ_HZ,
+    };
+    i2c_param_config(I2C_MASTER_NUM, &conf);
+    i2c_driver_install(I2C_MASTER_NUM, conf.mode, 0, 0, 0);
+}
+
+// Function to write data to the AHT20
+esp_err_t aht20_write_command(uint8_t cmd) {
+    i2c_cmd_handle_t handle = i2c_cmd_link_create();
+    i2c_master_start(handle);
+    i2c_master_write_byte(handle, (AHT20_ADDR << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(handle, cmd, true);
+    i2c_master_stop(handle);
+    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, handle, pdMS_TO_TICKS(1000));
+    i2c_cmd_link_delete(handle);
+    return ret;
+}
+
+// Function to read data from the AHT20
+esp_err_t aht20_read_data(uint8_t *data, size_t length) {
+    i2c_cmd_handle_t handle = i2c_cmd_link_create();
+    i2c_master_start(handle);
+    i2c_master_write_byte(handle, (AHT20_ADDR << 1) | I2C_MASTER_READ, true);
+    i2c_master_read(handle, data, length, I2C_MASTER_LAST_NACK);
+    i2c_master_stop(handle);
+    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, handle, pdMS_TO_TICKS(1000));
+    i2c_cmd_link_delete(handle);
+    return ret;
+}
+
+// Function to reset and initialize the AHT20
+void aht20_init() {
+    aht20_write_command(AHT20_CMD_SOFTRESET);
+    vTaskDelay(pdMS_TO_TICKS(20)); // Wait after reset
+    aht20_write_command(AHT20_CMD_INIT);
+    vTaskDelay(pdMS_TO_TICKS(20)); // Wait for initialization
+}
+
+// Function to get temperature and humidity
+void aht20_get_temp_humidity(float *temperature, float *humidity) {
+    uint8_t data[6];
+    aht20_write_command(AHT20_CMD_TRIGGER);
+    vTaskDelay(pdMS_TO_TICKS(80)); // Wait for the measurement
+
+    if (aht20_read_data(data, 6) == ESP_OK) {
+        uint32_t raw_humidity = ((data[1] << 16) | (data[2] << 8) | data[3]) >> 4;
+        uint32_t raw_temperature = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
+
+        *humidity = ((float)raw_humidity / 1048576.0) * 100.0;
+        *temperature = ((float)raw_temperature / 1048576.0) * 200.0 - 50.0;
+    } else {
+        *humidity = -1.0;
+        *temperature = -1.0;
+    }
+}
 
 static int read_temperature(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -307,8 +379,17 @@ error:
 static uint8_t hrm[2];  
 //int rc;
 struct os_mbuf *om;
+    float temperature = 0.0, humidity = 0.0;
+
+    i2c_master_init();
+    aht20_init();
+
     while (1)
     {
+            aht20_get_temp_humidity(&temperature, &humidity);
+        
+            printf("Temperature: %.2f °C, Humidity: %.2f %%", temperature, humidity);
+            vTaskDelay(pdMS_TO_TICKS(2000));
         wait_ms(1000);
         if (is_connected)
         {
@@ -327,6 +408,8 @@ struct os_mbuf *om;
             }
 
             assert(rc == 0);
+
+
         }
     }
 }
