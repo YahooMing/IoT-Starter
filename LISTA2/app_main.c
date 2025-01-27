@@ -37,12 +37,39 @@
 #define GATT_HRS_UUID 0x180D
 #define GATT_HRS_MEASUREMENT_UUID 0x2A37
 #define GATT_HRS_BODY_SENSOR_LOC_UUID 0x2A38
+
+#define GATT_ESS_UUID 0x181A
+#define GATT_ESS_TEMPERATURE_UUID 0x2A6E
+#define GATT_ESS_HUMIDITY_UUID 0x2A6F
+
+
 uint16_t hrs_hrm_handle;
 static bool is_connected = false;
 static uint16_t conn_handle;
 
 // Variable to simulate heart beats
 static uint8_t heartrate = 90;
+
+
+static int read_temperature(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    float temperature = 21.5; // Simulated temperature
+    int16_t temp = (int16_t)(temperature * 100); // Convert to 0.01 degrees Celsius
+
+    os_mbuf_append(ctxt->om, &temp, sizeof(temp));
+    return 0;
+}
+
+static int read_humidity(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    float humidity = 36.7; // Simulated humidity
+    uint16_t hum = (uint16_t)(humidity * 100); // Convert to 0.01 percent
+
+    os_mbuf_append(ctxt->om, &hum, sizeof(hum));
+    return 0;
+}
+
+
 
 static void wait_ms(unsigned delay)
 {
@@ -68,9 +95,9 @@ static int read_heart_rate_measurement(uint16_t conn_handle, uint16_t attr_handl
 
 static int read_body_sensor_location(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    uint8_t hrm = 6; //ZADANIE 3 , hrm = 6 to FOOT 
+    uint8_t hrm = 6; //ZADANIE 3 , hrm = 6 to FOOT
 
-    os_mbuf_append(ctxt->om, &hrm, sizeof(hrm)); // ZADANIE 3 rozszerzamy bufor bo zmieniliśmy hrm 
+    os_mbuf_append(ctxt->om, &hrm, sizeof(hrm)); // ZADANIE 3 rozszerzamy bufor bo zmieniliśmy hrm
     // return BLE_ATT_ERR_INSUFFICIENT_RES;
     return 0;
 }
@@ -108,13 +135,29 @@ static const struct ble_gatt_svc_def kBleServices[] = {
          {
              .uuid = BLE_UUID16_DECLARE(GATT_HRS_MEASUREMENT_UUID),
              .access_cb = read_heart_rate_measurement,
-             //.flags = BLE_GATT_CHR_F_READ,
              .val_handle = &hrs_hrm_handle,
-             .flags = BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_READ, //ZADANIE 5 zamiast READ jest NOTIFY
+             .flags = BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_READ,
          },
          {
              .uuid = BLE_UUID16_DECLARE(GATT_HRS_BODY_SENSOR_LOC_UUID),
              .access_cb = read_body_sensor_location,
+             .flags = BLE_GATT_CHR_F_READ,
+         },
+         {
+             0, // no more characteristics
+         },
+     }},
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY,
+     .uuid = BLE_UUID16_DECLARE(GATT_ESS_UUID),
+     .characteristics = (struct ble_gatt_chr_def[]){
+         {
+             .uuid = BLE_UUID16_DECLARE(GATT_ESS_TEMPERATURE_UUID),
+             .access_cb = read_temperature,
+             .flags = BLE_GATT_CHR_F_READ,
+         },
+         {
+             .uuid = BLE_UUID16_DECLARE(GATT_ESS_HUMIDITY_UUID),
+             .access_cb = read_humidity,
              .flags = BLE_GATT_CHR_F_READ,
          },
          {
@@ -260,32 +303,27 @@ void app_main(void)
     set_device_name("MatOs");
     start_advertisement();
 
-error:            
-static uint8_t hrm[2];  
-//int rc;
-struct os_mbuf *om;
-// Inside your while loop in app_main
-while (1)
-{
-    wait_ms(1000);
-    if (is_connected)
+error:
+    while (1)
     {
-        heartrate = random_heartrate(20, 120);  // Update heart rate before sending notification
+        wait_ms(1000);
+        if (is_connected)
+        {
+            heartrate = random_heartrate(20, 120);  // Update heart rate before sending notification
 
-        hrm[0] = 0x06; /* contact of a sensor */
-        hrm[1] = heartrate; /* storing dummy data */
+            hrm[0] = 0x06; /* contact of a sensor */
+            hrm[1] = heartrate; /* storing dummy data */
 
-        om = ble_hs_mbuf_from_flat(hrm, sizeof(hrm));
-        rc = ble_gatts_notify_custom(conn_handle, hrs_hrm_handle, om);
-        
-        if (rc == 0) {
-            printf("Halko\n");
-        } else {
-            printf("rc = %d\n", rc);
+            om = ble_hs_mbuf_from_flat(hrm, sizeof(hrm));
+            rc = ble_gatts_notify_custom(conn_handle, hrs_hrm_handle, om);
+
+            if (rc == 0) {
+                printf("Halko\n");
+            } else {
+                printf("rc = %d\n", rc);
+            }
+
+            assert(rc == 0);
         }
-
-        assert(rc == 0);
     }
-};
-
 }
