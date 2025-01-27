@@ -404,42 +404,30 @@ static uint16_t hum;
 
     while (1)
     {
-            aht20_get_temp_humidity(&temperature, &humidity);
+        aht20_get_temp_humidity(&temperature, &humidity);
+        printf("Temperature: %.2f °C, Humidity: %.2f %%\n", temperature, humidity);
         
-            printf("Temperature: %.2f °C, Humidity: %.2f %%", temperature, humidity);
-            vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(2000));
         wait_ms(1000);
+
         if (is_connected)
         {
             heartrate = random_heartrate(20, 120);  // Update heart rate before sending notification
+            hrm[0] = 0x06;  // Contact of a sensor
+            hrm[1] = heartrate;  // Heart rate measurement value
 
-            hrm[0] = 0x06; /* contact of a sensor */
-            hrm[1] = heartrate; /* storing dummy data */
-
-
-
-            temp = temperature;
-            hum = humidity;
-
-
+            temp = (int16_t)(temperature * 100);  // Convert to 0.01 degrees Celsius
+            hum = (uint16_t)(humidity * 100);  // Convert to 0.01 percent
 
             om = ble_hs_mbuf_from_flat(hrm, sizeof(hrm));
-            om_temp = ble_hs_mbuf_from_flat(temp, sizeof(temp));
-            om_hum = ble_hs_mbuf_from_flat((hum), sizeof(hum));
+            om_temp = ble_hs_mbuf_from_flat(&temp, sizeof(temp));  // Use &temp to get the address of temp
+            om_hum = ble_hs_mbuf_from_flat(&hum, sizeof(hum));  // Use &hum to get the address of hum
 
-            rc = ble_gatts_notify_custom(conn_handle, hrs_hrm_handle, om);
+            ble_gatts_notify_custom(conn_handle, hrs_hrm_handle, om);
             ble_gatts_notify_custom(conn_handle, hrs_hrm_handle_temp, om_temp);
             ble_gatts_notify_custom(conn_handle, hrs_hrm_handle_hum, om_hum);
 
-            if (rc == 0) {
-                printf("Halko\n");
-            } else {
-                printf("rc = %d\n", rc);
-            }
-
-            assert(rc == 0);
-
-
+        
         }
     }
 }
