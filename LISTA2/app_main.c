@@ -58,7 +58,7 @@ static uint16_t conn_handle;
 
 // Variable to simulate heart beats
 static uint8_t heartrate = 90;
-
+static float temperature = 0.0, humidity = 0.0;
 // Function to initialize I2C
 void i2c_master_init() {
     i2c_config_t conf = {
@@ -126,8 +126,13 @@ void aht20_get_temp_humidity(float *temperature, float *humidity) {
 
 static int read_temperature(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    float temperature = 21.5; // Simulated temperature
+    // float temperature = 21.5; // Simulated temperature
+    // int16_t temp = (int16_t)(temperature * 100); // Convert to 0.01 degrees Celsius
+
+    //printf("Temperature: %.2f °C, Humidity: %.2f %%", temperature, humidity);
+
     int16_t temp = (int16_t)(temperature * 100); // Convert to 0.01 degrees Celsius
+
 
     os_mbuf_append(ctxt->om, &temp, sizeof(temp));
     return 0;
@@ -135,7 +140,8 @@ static int read_temperature(uint16_t conn_handle, uint16_t attr_handle, struct b
 
 static int read_humidity(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    float humidity = 36.7; // Simulated humidity
+    // float humidity = 36.7; // Simulated humidity
+    // uint16_t hum = (uint16_t)(humidity * 100); // Convert to 0.01 percent
     uint16_t hum = (uint16_t)(humidity * 100); // Convert to 0.01 percent
 
     os_mbuf_append(ctxt->om, &hum, sizeof(hum));
@@ -380,7 +386,7 @@ error:
 static uint8_t hrm[2];  
 //int rc;
 struct os_mbuf *om;
-    float temperature = 0.0, humidity = 0.0;
+    
 
     i2c_master_init();
     aht20_init();
