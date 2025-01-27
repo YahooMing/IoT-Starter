@@ -304,6 +304,9 @@ void app_main(void)
     start_advertisement();
 
 error:
+static uint8_t hrm[2];  
+//int rc;
+struct os_mbuf *om;
     while (1)
     {
         wait_ms(1000);
