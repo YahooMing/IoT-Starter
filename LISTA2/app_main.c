@@ -52,7 +52,7 @@
 #define AHT20_CMD_INIT 0xBE             // Command to initialize the sensor
 
 
-uint16_t hrs_hrm_handle;
+uint16_t hrs_hrm_handle, hrs_hrm_handle_temp, hrs_hrm_handle_hum;
 static bool is_connected = false;
 static uint16_t conn_handle;
 
@@ -232,12 +232,14 @@ static const struct ble_gatt_svc_def kBleServices[] = {
          {
              .uuid = BLE_UUID16_DECLARE(GATT_ESS_TEMPERATURE_UUID),
              .access_cb = read_temperature,
-             .flags = BLE_GATT_CHR_F_READ,
+             .val_handle = &hrs_hrm_handle_temp,
+             .flags = BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_READ,
          },
          {
              .uuid = BLE_UUID16_DECLARE(GATT_ESS_HUMIDITY_UUID),
              .access_cb = read_humidity,
-             .flags = BLE_GATT_CHR_F_READ,
+             .val_handle = &hrs_hrm_handle_hum,
+             .flags = BLE_GATT_CHR_F_NOTIFY | BLE_GATT_CHR_F_READ,
          },
          {
              0, // no more characteristics
@@ -384,8 +386,17 @@ void app_main(void)
 
 error:
 static uint8_t hrm[2];  
+// static uint16_t hrm_temp_hum[2];  
+// static uint8_t hrm_hum[2];  
+//int rc;
+// int rc;
 //int rc;
 struct os_mbuf *om;
+struct os_mbuf *om_temp;
+struct os_mbuf *om_hum;
+static uint16_t temp;
+static uint16_t hum;
+
     
 
     i2c_master_init();
@@ -405,8 +416,20 @@ struct os_mbuf *om;
             hrm[0] = 0x06; /* contact of a sensor */
             hrm[1] = heartrate; /* storing dummy data */
 
+
+
+            temp = temperature;
+            hum = humidity;
+
+
+
             om = ble_hs_mbuf_from_flat(hrm, sizeof(hrm));
+            om_temp = ble_hs_mbuf_from_flat(temp, sizeof(temp));
+            om_hum = ble_hs_mbuf_from_flat((hum), sizeof(hum));
+
             rc = ble_gatts_notify_custom(conn_handle, hrs_hrm_handle, om);
+            ble_gatts_notify_custom(conn_handle, hrs_hrm_handle_temp, om_temp);
+            ble_gatts_notify_custom(conn_handle, hrs_hrm_handle_hum, om_hum);
 
             if (rc == 0) {
                 printf("Halko\n");
